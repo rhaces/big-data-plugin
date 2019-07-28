@@ -21,6 +21,8 @@
  ******************************************************************************/
 package org.pentaho.big.data.kettle.plugins.kafka;
 
+import org.apache.kafka.clients.admin.AdminClient;
+import org.apache.kafka.clients.admin.ListTopicsResult;
 import org.apache.kafka.clients.consumer.Consumer;
 import org.pentaho.di.core.Result;
 import org.pentaho.di.core.exception.KettleStepException;
@@ -37,6 +39,7 @@ import org.pentaho.di.trans.streaming.common.FixedTimeStreamWindow;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ExecutionException;
 import java.util.stream.Collectors;
 
 /**
@@ -81,6 +84,33 @@ public class KafkaConsumerInput extends BaseStreamStep implements StepInterface 
 
     Set<String> topics =
       kafkaConsumerInputMeta.getTopics().stream().map( this::environmentSubstitute ).collect( Collectors.toSet() );
+
+    // ToDo: Request developer if they want to report if topic does not exists.
+    if ( true ) {
+      AdminClient kac = AdminClient.create(kafkaConsumerInputMeta.getKafkaFactory().getKafkaConfig());
+      ListTopicsResult listTopics = kac.listTopics();
+      Set<String> topicsName = null;
+      try {
+        topicsName = listTopics.names().get();
+      } catch (InterruptedException e) {
+        e.printStackTrace();
+      } catch (ExecutionException e) {
+        e.printStackTrace();
+      }
+      Set<String> topicsCompare = topics.stream().collect(Collectors.toSet());
+      topicsCompare.removeAll( topicsName );
+      if ( topicsCompare.size() > 0 ) {
+        topicsCompare.forEach( (String topic) -> {
+          log.logBasic("Topic " + topic + " does not exist");
+        });
+        topics.removeAll( topicsCompare );
+      }
+    }
+
+    if ( topics.size() == 0 ) {
+      log.logError("No topic available, please confirm topics entered exist.");
+      return false;
+    }
     consumer.subscribe( topics );
 
     source = new KafkaStreamSource( consumer, kafkaConsumerInputMeta, kafkaConsumerInputData, variables, this );

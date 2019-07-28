@@ -83,7 +83,7 @@
     <apache-avro.version>1.8.2</apache-avro.version>
     <dependency.cxf.revision>3.0.13</dependency.cxf.revision>
     <aws-java-sdk.version>1.11.275</aws-java-sdk.version>
-    <kafka-clients.version>0.10.2.1</kafka-clients.version>
+    <kafka-clients.version>0.11.0.3</kafka-clients.version>
     <dependency.hamcrest.revision>1.3</dependency.hamcrest.revision>
     <commons-xul.version>8.3.0.1-442</commons-xul.version>
     <pentaho-osgi-bundles.version>8.3.0.1-442</pentaho-osgi-bundles.version>
