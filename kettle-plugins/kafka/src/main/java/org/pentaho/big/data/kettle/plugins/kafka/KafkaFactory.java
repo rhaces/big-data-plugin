@@ -41,6 +41,7 @@ import org.pentaho.bigdata.api.jaas.JaasConfigService;
 public class KafkaFactory {
   private Function<Map<String, Object>, Consumer> consumerFunction;
   private Function<Map<String, Object>, Producer<Object, Object>> producerFunction;
+  private HashMap<String, Object> kafkaConfig;
 
   public static KafkaFactory defaultFactory() {
     return new KafkaFactory( KafkaConsumer::new, KafkaProducer::new );
@@ -51,6 +52,8 @@ public class KafkaFactory {
     Function<Map<String, Object>, Producer<Object, Object>> producerFunction ) {
     this.consumerFunction = consumerFunction;
     this.producerFunction = producerFunction;
+    this.kafkaConfig = new HashMap<>();
+
   }
 
   public Consumer consumer( KafkaConsumerInputMeta meta, Function<String, String> variablesFunction ) {
@@ -60,19 +63,24 @@ public class KafkaFactory {
   public Consumer consumer( KafkaConsumerInputMeta meta, Function<String, String> variablesFunction,
     KafkaConsumerField.Type keyDeserializerType, KafkaConsumerField.Type msgDeserializerType ) {
 
-    HashMap<String, Object> kafkaConfig = new HashMap<>();
     Function<String, String> variableNonNull = variablesFunction.andThen( KafkaFactory::nullToEmpty );
-    kafkaConfig.put( ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, variableNonNull.apply( meta.getBootstrapServers() ) );
-    kafkaConfig.put( ConsumerConfig.GROUP_ID_CONFIG, variableNonNull.apply( meta.getConsumerGroup() ) );
-    kafkaConfig.put( ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, msgDeserializerType.getKafkaDeserializerClass() );
-    kafkaConfig.put( ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, keyDeserializerType.getKafkaDeserializerClass() );
-    kafkaConfig.put( ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, meta.isAutoCommit() );
-    meta.getJaasConfigService().ifPresent( jaasConfigService -> putKerberosConfig( kafkaConfig, jaasConfigService ) );
+    this.kafkaConfig.put( ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, variableNonNull.apply( meta.getBootstrapServers() ) );
+    this.kafkaConfig.put( ConsumerConfig.GROUP_ID_CONFIG, variableNonNull.apply( meta.getConsumerGroup() ) );
+    if ( meta.useAvro && ! meta.schemaRegistry.isEmpty() ) {
+      this.kafkaConfig.put( ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, "io.confluent.kafka.serializers.KafkaAvroDeserializer" );
+      this.kafkaConfig.put( ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, "org.apache.kafka.common.serialization.StringDeserializer" );
+      this.kafkaConfig.put( "schema.registry.url", meta.schemaRegistry );
+    } else {
+      this.kafkaConfig.put( ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, msgDeserializerType.getKafkaDeserializerClass() );
+      this.kafkaConfig.put( ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, keyDeserializerType.getKafkaDeserializerClass() );
+    }
+    this.kafkaConfig.put( ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, meta.isAutoCommit() );
+    meta.getJaasConfigService().ifPresent( jaasConfigService -> putKerberosConfig( this.kafkaConfig, jaasConfigService ) );
     meta.getConfig().entrySet()
-        .forEach( ( entry -> kafkaConfig.put( entry.getKey(), variableNonNull.apply(
+        .forEach( ( entry -> this.kafkaConfig.put( entry.getKey(), variableNonNull.apply(
             (String) entry.getValue() ) ) ) );
 
-    return consumerFunction.apply( kafkaConfig );
+    return consumerFunction.apply( this.kafkaConfig );
   }
 
   public void putKerberosConfig( Map<String, Object> kafkaConfig, JaasConfigService jaasConfigService ) {
@@ -92,17 +100,20 @@ public class KafkaFactory {
     KafkaConsumerField.Type keySerializerType, KafkaConsumerField.Type msgSerializerType ) {
 
     Function<String, String> variableNonNull = variablesFunction.andThen( KafkaFactory::nullToEmpty );
-    HashMap<String, Object> kafkaConfig = new HashMap<>();
-    kafkaConfig.put( ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, variableNonNull.apply( meta.getBootstrapServers() ) );
-    kafkaConfig.put( ProducerConfig.CLIENT_ID_CONFIG, variableNonNull.apply( meta.getClientId() ) );
-    kafkaConfig.put( ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, msgSerializerType.getKafkaSerializerClass() );
-    kafkaConfig.put( ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, keySerializerType.getKafkaSerializerClass() );
-    meta.getJaasConfigService().ifPresent( jaasConfigService -> putKerberosConfig( kafkaConfig, jaasConfigService ) );
+    this.kafkaConfig.put( ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, variableNonNull.apply( meta.getBootstrapServers() ) );
+    this.kafkaConfig.put( ProducerConfig.CLIENT_ID_CONFIG, variableNonNull.apply( meta.getClientId() ) );
+    this.kafkaConfig.put( ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, msgSerializerType.getKafkaSerializerClass() );
+    this.kafkaConfig.put( ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, keySerializerType.getKafkaSerializerClass() );
+    meta.getJaasConfigService().ifPresent( jaasConfigService -> putKerberosConfig( this.kafkaConfig, jaasConfigService ) );
     meta.getConfig().entrySet()
-        .forEach( ( entry -> kafkaConfig.put( entry.getKey(), variableNonNull.apply(
+        .forEach( ( entry -> this.kafkaConfig.put( entry.getKey(), variableNonNull.apply(
             (String) entry.getValue() ) ) ) );
 
-    return producerFunction.apply( kafkaConfig );
+    return producerFunction.apply( this.kafkaConfig );
+  }
+
+  public HashMap<String, Object> getKafkaConfig() {
+    return this.kafkaConfig;
   }
 
   private static String nullToEmpty( String value ) {

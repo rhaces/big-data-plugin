@@ -155,8 +155,14 @@ public class KafkaConsumerInputMeta extends BaseStreamStepMeta implements StepMe
 
   private NamedClusterServiceLocator namedClusterServiceLocator;
 
+  public boolean useAvro;
+
+  public String schemaRegistry;
+
   public KafkaConsumerInputMeta() {
     super(); // allocate BaseStepMeta
+    this.useAvro = false;
+    this.schemaRegistry = "";
     kafkaFactory = KafkaFactory.defaultFactory();
     keyField = new KafkaConsumerField(
       KafkaConsumerField.Name.KEY,
@@ -335,6 +341,14 @@ public class KafkaConsumerInputMeta extends BaseStreamStepMeta implements StepMe
 
   @Override
   public RowMeta getRowMeta( String origin, VariableSpace space ) throws KettleStepException {
+    this.useAvro = space.getVariable( "USE_AVRO", "N" ).equals("Y");
+    if ( this.useAvro ) {
+      if( space.getVariable( "SCHEMA_REGISTRY", "N/A" ).equals("N/A") ) {
+        this.useAvro = false;
+      } else {
+        this.schemaRegistry = space.getVariable( "SCHEMA_REGISTRY", "N/A" );
+      }
+    }
     RowMeta rowMeta = new RowMeta();
     putFieldOnRowMeta( getKeyField(), rowMeta, origin, space );
     putFieldOnRowMeta( getMessageField(), rowMeta, origin, space );

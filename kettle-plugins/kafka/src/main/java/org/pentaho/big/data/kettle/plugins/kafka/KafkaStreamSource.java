@@ -148,6 +148,8 @@ public class KafkaStreamSource extends BlockingQueueStreamSource<List<Object>> {
           throw e;
         }
         return null;
+      } catch ( Exception e ) {
+        throw e;
       } finally {
         commitOffsets();
         consumer.close();
@@ -195,6 +197,10 @@ public class KafkaStreamSource extends BlockingQueueStreamSource<List<Object>> {
 
     if ( positions.get( KafkaConsumerField.Name.MESSAGE ) != null ) {
       rowData[ positions.get( KafkaConsumerField.Name.MESSAGE ) ] = record.value();
+      if ( kafkaConsumerInputMeta.useAvro ) {
+        rowData[ positions.get( KafkaConsumerField.Name.MESSAGE ) ] =
+                rowData[ positions.get( KafkaConsumerField.Name.MESSAGE ) ].toString();
+      }
     }
 
     if ( positions.get( TOPIC ) != null ) {
